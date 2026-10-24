@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Titra — agent action dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">Titra</span>
+      <span class="brand-tag">securing the agentic CI/CD</span>
+    </div>
+    <div class="top-right">
+      <span id="live" class="live off" title="live connection">live</span>
+      <span id="user" class="user"></span>
+    </div>
+  </header>
+
+  <section class="totals" id="totals" hidden>
+    <div class="stat"><div class="stat-n" id="t-runs">0</div><div class="stat-l">runs</div></div>
+    <div class="stat"><div class="stat-n" id="t-actions">0</div><div class="stat-l">actions</div></div>
+    <div class="stat"><div class="stat-n block" id="t-blocked">0</div><div class="stat-l">blocked</div></div>
+    <div class="stat"><div class="stat-n would" id="t-would">0</div><div class="stat-l">would-block</div></div>
+  </section>
+
+  <main class="layout">
+    <aside class="runs-panel">
+      <h2>Runs</h2>
+      <ul class="runs" id="runs"></ul>
+    </aside>
+
+    <section class="detail" id="detail">
+      <div class="empty" id="empty">
+        <p class="empty-mark">⌁</p>
+        <p>No run selected.</p>
+        <p class="muted small">Run a guarded pipeline — actions appear here live.</p>
+      </div>
+    </section>
+  </main>
+
+  <template id="run-tmpl">
+    <li class="run" tabindex="0">
+      <div class="run-top">
+        <span class="run-repo"></span>
+        <span class="run-mode"></span>
+      </div>
+      <div class="run-wf muted small"></div>
+      <div class="run-bar"></div>
+      <div class="run-meta muted small"></div>
+    </li>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

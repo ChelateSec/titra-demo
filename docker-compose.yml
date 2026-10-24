@@ -1,0 +1,11 @@
+# Local run:  docker compose up --build   → dashboard on http://localhost:8080
+services:
+  titra:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      TITRA_PUBLIC_URL: "http://localhost:8080"
+    volumes:
+      - titra-data:/data
+volumes:
+  titra-data:

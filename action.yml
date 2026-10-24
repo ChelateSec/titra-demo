@@ -1,0 +1,92 @@
+name: "Titra Guard"
+description: "Watch what AI agents do in your CI pipeline and block the dangerous actions, in real time."
+author: "Chelate Sec"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  mode:
+    description: "monitor | dry-run | enforce. Start in monitor; flip to enforce when you trust it."
+    required: false
+    default: "monitor"
+  policy:
+    description: "Path to a Titra policy file. If empty, the built-in secure defaults are used."
+    required: false
+    default: ""
+  tools:
+    description: "Comma-separated tools to guard. Empty uses the built-in set (git, gh, curl, npm, ...)."
+    required: false
+    default: ""
+  log:
+    description: "Path for the JSONL action log."
+    required: false
+    default: ""
+  server:
+    description: "Titra server URL to stream actions to live (optional). Usually ${{ secrets.TITRA_SERVER }}."
+    required: false
+    default: ""
+  token:
+    description: "Ingest token for the server (optional). Usually ${{ secrets.TITRA_TOKEN }}."
+    required: false
+    default: ""
+  go-version:
+    description: "Go version used to build the guard."
+    required: false
+    default: "1.24"
+
+outputs:
+  log:
+    description: "Path to the JSONL action log the guard writes."
+    value: ${{ steps.setup.outputs.log }}
+  shim-dir:
+    description: "Directory of tool shims prepended to PATH."
+    value: ${{ steps.setup.outputs.shim_dir }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    - name: Build and install Titra guard
+      id: setup
+      shell: bash
+      env:
+        TITRA_INPUT_MODE: ${{ inputs.mode }}
+        TITRA_INPUT_POLICY: ${{ inputs.policy }}
+        TITRA_INPUT_TOOLS: ${{ inputs.tools }}
+        TITRA_INPUT_LOG: ${{ inputs.log }}
+        TITRA_INPUT_SERVER: ${{ inputs.server }}
+        TITRA_INPUT_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+
+        # Build the guard from this action's own checkout.
+        bin_dir="$RUNNER_TEMP/titra"
+        mkdir -p "$bin_dir"
+        ( cd "$GITHUB_ACTION_PATH" && go build -ldflags "-X main.version=action" -o "$bin_dir/titra" . )
+
+        log="${TITRA_INPUT_LOG:-$RUNNER_TEMP/titra-actions.jsonl}"
+        : > "$log"   # start fresh
+
+        args=( install --dir "$bin_dir/shims" --log "$log" --mode "$TITRA_INPUT_MODE" --github-env )
+        [ -n "$TITRA_INPUT_POLICY" ] && args+=( --policy "$TITRA_INPUT_POLICY" )
+        [ -n "$TITRA_INPUT_TOOLS" ]  && args+=( --tools  "$TITRA_INPUT_TOOLS" )
+        [ -n "$TITRA_INPUT_SERVER" ] && args+=( --server "$TITRA_INPUT_SERVER" )
+        [ -n "$TITRA_INPUT_TOKEN" ]  && args+=( --token  "$TITRA_INPUT_TOKEN" )
+
+        # install emits shell exports on stdout (ignored here) and wires
+        # $GITHUB_PATH / $GITHUB_ENV via --github-env for the following steps.
+        "$bin_dir/titra" "${args[@]}" >/dev/null
+
+        # Expose the titra binary itself to later steps (for `titra report`).
+        echo "$bin_dir" >> "$GITHUB_PATH"
+
+        echo "log=$log"                 >> "$GITHUB_OUTPUT"
+        echo "shim_dir=$bin_dir/shims"  >> "$GITHUB_OUTPUT"
+
+        echo "titra: guarding this job (mode: $TITRA_INPUT_MODE); log -> $log"

@@ -1,0 +1,21 @@
+# Deploy the Titra dashboard to Fly.io:  fly launch --copy-config --now
+app = "titra"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  TITRA_ADDR = ":8080"
+  TITRA_DATA = "/data"
+  # Set your real URL so OAuth + the GitHub App work:
+  #   fly secrets set TITRA_PUBLIC_URL=https://titra.your-org.dev
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  min_machines_running = 1
+
+[[mounts]]
+  source = "titra_data"
+  destination = "/data"
