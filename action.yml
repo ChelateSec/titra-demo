@@ -23,11 +23,11 @@ inputs:
     required: false
     default: ""
   server:
-    description: "Titra server URL to stream actions to live (optional). Usually ${{ secrets.TITRA_SERVER }}."
+    description: "Titra server URL to stream actions to live (optional)."
     required: false
     default: ""
   token:
-    description: "Ingest token for the server (optional). Usually ${{ secrets.TITRA_TOKEN }}."
+    description: "Ingest token for the server (optional)."
     required: false
     default: ""
   go-version:
