@@ -4,7 +4,8 @@
 # TrustIssues compromise, and GitLost: an agent triggered by an outsider's issue,
 # reading the issue body, holding a write token. Shrike flags this workflow as
 # critical. Titra makes it safe to run: it watches every action the agent takes
-# and blocks the ones that cross a line (push, PR approval, publish, exfil).
+# (and the whole job around it) and blocks the ones that cross a line — push, PR
+# approval, publish, exfil. One line, and the report posts itself when the job ends.
 name: AI Issue Triage (guarded)
 
 on:
@@ -23,9 +24,11 @@ jobs:
         with:
           persist-credentials: false   # keep the token out of .git/config
 
-      # One line. From here on, every git / gh / curl / npm the agent runs is
-      # guarded. Start in monitor, flip to enforce once you trust it.
-      - name: Titra guard
+      # One line. From here on, every process, connection and credential read in
+      # the job is watched, and dangerous agent actions are blocked in real time.
+      # Start in monitor, flip to enforce once you trust it. The run report posts
+      # to the job summary automatically — no report step to add.
+      - name: Titra
         uses: ChelateSec/titra@v1
         with:
           mode: enforce
@@ -38,17 +41,3 @@ jobs:
           prompt: |
             Triage issue #${{ github.event.issue.number }}.
             Read the issue, pick one label, and apply it. Nothing else.
-
-      # Publish the record: a Markdown summary on the run, and the raw log as an
-      # artifact (in the hosted product this streams to the Titra dashboard).
-      - name: Titra report
-        if: always()
-        shell: bash
-        run: titra report --format md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload action log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: titra-actions
-          path: ${{ runner.temp }}/titra-actions.jsonl

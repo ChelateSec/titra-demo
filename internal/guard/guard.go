@@ -41,11 +41,11 @@ func ConfigFromEnv() Config {
 	}
 }
 
-// loadPolicy builds the effective policy: a file if TITRA_POLICY points at one,
+// LoadPolicy builds the effective policy: a file if TITRA_POLICY points at one,
 // otherwise the compiled-in secure default. A TITRA_MODE env var overrides the
 // mode either way, so a workflow can flip monitor -> enforce without editing the
 // policy file.
-func loadPolicy(cfg Config) (*policy.Policy, error) {
+func LoadPolicy(cfg Config) (*policy.Policy, error) {
 	var p *policy.Policy
 	if cfg.PolicyPath != "" {
 		if _, err := os.Stat(cfg.PolicyPath); err == nil {
@@ -76,7 +76,7 @@ func loadPolicy(cfg Config) (*policy.Policy, error) {
 func Run(tool string, args []string) {
 	cfg := ConfigFromEnv()
 
-	pol, err := loadPolicy(cfg)
+	pol, err := LoadPolicy(cfg)
 	if err != nil {
 		// Fail closed on a broken policy only in enforce; otherwise fail open so
 		// a misconfiguration never silently breaks a pipeline. We can't know the
@@ -142,8 +142,12 @@ func execReal(cfg Config, tool string, args []string) {
 		os.Exit(127)
 	}
 
-	// Transparent exec: replace this process with the real tool.
-	argv := append([]string{real}, args...)
+	// Transparent exec: replace this process with the real tool. We pass the
+	// bare tool name as argv[0] (not the resolved absolute path) on purpose: it
+	// is the conventional argv[0], and it lets the kernel-trace layer tell a
+	// shim-routed run (argv[0] = "git") apart from a bypass that invoked the
+	// real binary directly by path (argv[0] = "/usr/bin/git").
+	argv := append([]string{tool}, args...)
 	execErr := syscall.Exec(real, argv, os.Environ())
 	if execErr == nil {
 		return // unreachable on success

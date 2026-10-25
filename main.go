@@ -15,6 +15,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -49,6 +50,12 @@ func main() {
 		cmdInstall(os.Args[2:])
 	case "report":
 		cmdReport(os.Args[2:])
+	case "trace":
+		cmdTrace(os.Args[2:])
+	case "dns":
+		cmdDNS(os.Args[2:])
+	case "hook":
+		cmdHook(os.Args[2:])
 	case "serve":
 		cmdServe(os.Args[2:])
 	case "init":
@@ -124,30 +131,64 @@ func cmdInstall(args []string) {
 func cmdReport(args []string) {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	logPath := fs.String("log", defaultLogPath(), "path to the JSONL action log")
-	format := fs.String("format", "text", "output format: text | md")
-	failOn := fs.String("fail-on", "", "exit non-zero if any action was blocked (block) or would-block (would-block)")
+	format := fs.String("format", "text", "output format: text | md | json")
+	failOn := fs.String("fail-on", "", "exit non-zero if any action was blocked (block) or would-block|any")
+	stateDir := fs.String("state", os.Getenv("TITRA_STATE"), "trace state dir (enables the full run report)")
+	out := fs.String("out", "", "also write the report to this file")
 	_ = fs.Parse(args)
 
-	sum, err := report.Load(*logPath)
+	story, legacy, err := buildReport(*logPath, *stateDir)
 	if err != nil {
 		fatal(fmt.Errorf("reading log %s: %w", *logPath, err))
 	}
+
+	var w io.Writer = os.Stdout
+	var file *os.File
+	if *out != "" {
+		file, err = os.Create(*out)
+		if err != nil {
+			fatal(err)
+		}
+		defer file.Close()
+		w = io.MultiWriter(os.Stdout, file)
+	}
+
+	if story != nil {
+		switch *format {
+		case "md", "markdown":
+			report.StoryMarkdown(w, *story)
+		case "json":
+			_ = report.StoryJSON(w, *story)
+		default:
+			report.StoryTerminal(w, *story)
+		}
+		if shouldFail(*failOn, len(story.Blocked) > 0, story.Warnings() > 0) {
+			os.Exit(1)
+		}
+		return
+	}
+
 	switch *format {
 	case "md", "markdown":
-		report.Markdown(os.Stdout, sum)
+		report.Markdown(w, legacy)
+	case "json":
+		_ = report.StoryJSON(w, report.Story{}) // empty shell; no trace data
 	default:
-		report.Terminal(os.Stdout, sum)
+		report.Terminal(w, legacy)
 	}
-	switch *failOn {
+	if shouldFail(*failOn, legacy.Blocked > 0, legacy.HasFindings()) {
+		os.Exit(1)
+	}
+}
+
+func shouldFail(failOn string, blocked, findings bool) bool {
+	switch failOn {
 	case "block":
-		if sum.Blocked > 0 {
-			os.Exit(1)
-		}
+		return blocked
 	case "would-block", "any":
-		if sum.HasFindings() {
-			os.Exit(1)
-		}
+		return findings
 	}
+	return false
 }
 
 func cmdServe(args []string) {
@@ -255,17 +296,27 @@ func usage() {
 Usage:
   titra install [--dir D] [--tools a,b,c] [--log F] [--policy F] [--mode M] [--github-env]
       Install the tool shims and emit the environment that guards this job.
+  titra trace start|stop|collect [--state DIR] [--dns] [--lock] [--github-env]
+      Watch the whole job with the kernel: every process, connection and
+      credential read, not only guarded commands. Needs root.
+  titra hook claude
+      Claude Code PreToolUse hook: log and (in enforce) block the agent's own
+      tool calls. Reads the hook event on stdin.
   titra guard <tool> [args...]
       Evaluate and run a single tool invocation (the shims call this).
-  titra report [--log F] [--format text|md] [--fail-on block|any]
-      Summarize the action log.
+  titra report [--log F] [--state DIR] [--format text|md|json] [--fail-on block|any|off] [--out F]
+      Render the run report. With --state it tells the whole story: who
+      triggered the run, which agent ran, what it tried, and what else the job did.
+  titra dns --upstream H --log F [--listen 127.0.0.1:53]
+      Logging DNS forwarder (started by 'trace' to name outbound connections).
   titra init [--path .titra/policy.yml] [--mode monitor|dry-run|enforce]
       Write a starter policy file.
+  titra serve [--addr :8080] [--data DIR]
+      Optional self-hosted dashboard (Titra Enterprise).
   titra version
 
-Once installed, titra guards git, gh, curl, npm, ... — logging every action an
-agent takes and blocking the dangerous ones. The block decision is deterministic
-policy, never a model.
+The block decision is deterministic policy, never a model — a guard that asked
+an LLM whether to block could itself be prompt-injected.
 `)
 }
 

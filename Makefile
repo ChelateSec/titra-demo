@@ -1,4 +1,4 @@
-VERSION ?= 0.1.0
+VERSION ?= 0.3.0
 LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: build test vet fmt demo clean install
@@ -20,6 +20,9 @@ demo: ## Run the local end-to-end demo (enforce mode)
 
 demo-monitor: ## Run the demo in monitor mode
 	./scripts/demo.sh monitor
+
+demo-trace: build ## Full product demo: whole-job tracing + story report (needs sudo, Linux)
+	sudo ./scripts/e2e.sh
 
 install: build ## Build and install shims into ./.titra-bin (local experiment)
 	eval "$$(./titra install --dir ./.titra-bin --mode enforce)"

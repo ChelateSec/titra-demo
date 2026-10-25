@@ -1,160 +1,115 @@
 # Titra
 
-**Watch what AI agents do in your CI pipelines — and block the dangerous actions, in real time.**
+**Watch what AI agents do in your CI job — and block the dangerous actions, in real time.**
 
-Titra is [Chelate Sec](https://github.com/ChelateSec)'s runtime guard for agentic CI/CD. Teams drop AI agents (Claude Code, Gemini CLI, Copilot) into their pipelines to triage issues and review PRs. These agents read whatever a stranger writes and act with the repo's credentials. One prompt-injected issue and the agent pushes code, approves its own PR, or leaks a secret — and nobody sees it happen.
+Titra is [Chelate Sec](https://github.com/ChelateSec)'s runtime guard for agentic CI/CD. Teams drop AI agents (Claude Code, Gemini CLI, Copilot) into their pipelines to triage issues and review PRs. Those agents read whatever a stranger writes and act with the repo's credentials. One prompt-injected issue and the agent pushes code, approves its own PR, or leaks a token — and nobody sees it happen.
 
-Titra has two parts:
+Titra is one line in your workflow. It watches the whole job, blocks the actions that turn a prompt injection into a supply-chain compromise, and posts a plain-language report on the run. The block decision is deterministic policy, **never a model** — a guard that asked an LLM whether to block could itself be prompt-injected.
 
-- **The guard** runs inside each CI job. It sits between the agent and the tools it uses, **logs every action** and **blocks the dangerous ones** (push, PR approval, publish, credential read) before they run.
-- **The dashboard + GitHub App** is the control plane. Orgs install Titra in one click; every guarded job streams its actions to a live web dashboard; Titra posts a Check on the PR.
+> Securing the agentic CI/CD.
 
-> Titra is the runtime half of Chelate. [Shrike](https://github.com/ChelateSec/shrike), the open-source scanner, *finds* the risky workflows; Titra *holds* them at runtime.
-
----
-
-## See it in 60 seconds
-
-```bash
-make demo-live      # builds Titra, starts the dashboard, runs a guarded agent,
-                    # and opens your browser — watch 4 actions get blocked live
-```
-
-No GitHub, no secrets, no signup. A simulated prompt-injected agent tries to push code, self-approve a PR, trigger a release, and exfiltrate the token — Titra blocks each one and it appears on the dashboard in real time.
-
-## How the guard works
-
-Titra installs itself on `PATH` under the names of the tools it guards (`git`, `gh`, `curl`, `npm`, ...), busybox-style. When the agent runs `git push`, it's Titra that runs: it checks the command against a policy, records it, then execs the real tool or refuses.
-
-```
-agent runs:  git push origin main
-                  │
-             ┌────▼─────┐   evaluate against policy (deterministic, never an LLM)
-             │  titra   │── log locally ─────► actions.jsonl
-             └────┬─────┘── stream ──────────► dashboard (live)
-          allow?  │  block?
-        exec real │  refuse, exit 1
-            git ◄─┘
-```
-
-**The block decision is deterministic policy matching — never a model.** A guard that asked an LLM whether to block could itself be prompt-injected, reintroducing the exact risk Titra removes.
-
-## The product: dashboard + GitHub App
-
-Run the control plane:
-
-```bash
-make serve          # dashboard on http://localhost:8080
-```
-
-Two modes, same binary:
-
-- **Local / dev** — no GitHub App configured. The dashboard is open and ingest needs no token. This is the zero-setup demo.
-- **Product** — register a GitHub App (one click), and the dashboard requires GitHub login while ingest requires a per-org token.
-
-### One-click GitHub App install
-
-Open `http://localhost:8080/setup` (or your deployed URL) and click **Create the GitHub App**. Titra uses GitHub's app-manifest flow: GitHub creates the App and hands the credentials straight back to the server — you copy nothing. Then:
-
-1. **Install** the App on your org.
-2. Add two repo secrets: `TITRA_SERVER` (your dashboard URL) and `TITRA_TOKEN` (shown on the setup page).
-3. Add the Action to any workflow that runs an agent:
+## Quick start
 
 ```yaml
-- name: Titra guard
-  uses: ChelateSec/titra@v1
-  with:
-    mode: enforce                      # monitor | dry-run | enforce
-    server: ${{ secrets.TITRA_SERVER }}
-    token:  ${{ secrets.TITRA_TOKEN }}
+      - name: Titra
+        uses: ChelateSec/titra@v1
+        with:
+          mode: monitor      # watch only; switch to enforce when you trust it
 ```
 
-Every guarded job now streams live to your dashboard, and Titra can post a Check Run on the PR.
+Put it after `actions/checkout` and before your agent step. That's the whole install: no server, no app, no account. Titra watches the job, and when it ends it posts a report to the run's **Summary** tab by itself. Flip `mode: enforce` to start blocking.
 
-> OAuth and the GitHub App need a public URL. For a local demo without deploying, the dashboard + live ingest work on `localhost`; expose it with a tunnel (`cloudflared tunnel --url http://localhost:8080`) only when you want the GitHub App install + Checks.
+## What it does
 
-## Deploy
+Three layers, from one line:
 
-```bash
-docker compose up --build            # local container → http://localhost:8080
-# or
-fly launch --copy-config --now       # Fly.io; then:
-fly secrets set TITRA_PUBLIC_URL=https://titra.your-org.dev
-```
+1. **Guards commands.** `git`, `gh`, `curl`, `npm` and friends are intercepted. A push to a protected branch, a self-approved PR, a package publish, a read of `.git/config` — refused before it runs.
+2. **Watches the whole job.** Using the Linux kernel's audit subsystem, Titra sees *every* process, outbound connection and credential-file read — even a tool run by absolute path to dodge the shims, or an exfil over a raw socket from Python. Nothing in the job is invisible.
+3. **Hooks the agent.** With Claude Code it reads every tool call the agent makes and blocks the dangerous ones at the source, so the report shows the agent's own intent.
 
-The server is a single static binary with no third-party dependencies; data persists under `/data` (a JSONL action log + a config file).
+The report ties it together into a story:
+
+> `ext-user` (outside contributor) opened issue #42. Claude Code ran with **contents, pull-requests** write access and tried 3 dangerous actions — Titra stopped them before they ran.
+
+...followed by the blocked actions, who triggered the run, the token's permissions, and everything else the job touched (unexpected destinations, stray credential reads, tools run around the guard).
 
 ## Modes
 
-| Mode | Logs | Blocks | Use it to |
-| --- | --- | --- | --- |
-| `monitor` | ✅ | — | See what your agents do, break nothing. **Start here.** |
-| `dry-run` | ✅ | marks *would-block* | Preview what enforcement would stop. |
-| `enforce` | ✅ | ✅ | Block dangerous actions in real time. |
+| Mode | What happens |
+| --- | --- |
+| `monitor` | Logs everything, blocks nothing. Start here. |
+| `dry-run` | Logs and marks what *would* block, still allows it. |
+| `enforce` | Blocks matching actions in real time and fails the check. |
+
+## Inputs
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `mode` | `monitor` | `monitor` \| `dry-run` \| `enforce` |
+| `policy` | *(built-in)* | Path to a policy file; omit for secure defaults |
+| `tools` | *(built-in set)* | Comma-separated tools to guard |
+| `trace` | `true` | Watch the whole job with the kernel (Linux + sudo) |
+| `dns` | `true` | Resolve outbound connections to domain names |
+| `allowed-domains` | — | Extra destinations this job is expected to reach |
+| `report` | `true` | Post the report and set the check automatically |
+| `fail-on` | `block` | Fail on `block`, `any`, or `off` |
 
 ## Policy
 
-Built-in defaults block the actions that turned 2026's incidents into supply-chain compromises: code push, PR approval/merge, workflow-dispatch pivots, package/release publish, and credential-store reads. Generate an editable policy:
-
-```bash
-titra init --mode monitor       # writes .titra/policy.yml
-```
-
-Rules are evaluated in order, **first match wins**. A rule matches when its `tool` matches (empty = any) and its `args_regex` matches the arguments.
+The built-in defaults block the actions that turned real 2026 incidents into compromises: pushing code, approving or merging PRs, dispatching other workflows, publishing packages, and reading credential stores. Write your own with `titra init`:
 
 ```yaml
 version: 1
 mode: enforce
 default: allow
+allowed_domains:
+  - api.mycorp.com
+  - "*.internal"
 rules:
   - id: block-git-push
-    description: Agent must not push code to the repository
+    description: Agent must not push code
     action: block
     severity: critical
-    match: { tool: git, args_regex: '(^|\s)push(\s|$)' }
+    match:
+      tool: git
+      args_regex: '(^|\s)push(\s|$)'
 ```
 
-Full example: [`examples/policy.yml`](examples/policy.yml). Point the Action at yours with `policy: .titra/policy.yml`.
+Rules are first-match-wins. `match.tool` is the command name; `match.args_regex` is tested against the joined arguments.
+
+## Claude Code hook
+
+To record and gate the agent's own tool calls, add Titra as a `PreToolUse` hook (Titra's Action sets this up for you when it detects Claude Code):
+
+```json
+{ "hooks": { "PreToolUse": [ { "matcher": "*",
+  "hooks": [ { "type": "command", "command": "titra hook claude" } ] } ] } }
+```
 
 ## CLI
 
 ```
-titra serve      # run the dashboard / GitHub App control plane
-titra install    # create the tool shims and emit the guarding environment
-titra guard …    # evaluate and run a single tool invocation (shims call this)
-titra report     # summarize the local action log (text | md; --fail-on block gates CI)
-titra init       # write a starter policy
-titra version
+titra install   # set up the shims and emit the guard environment
+titra trace start|stop|collect   # whole-job kernel tracing (needs root)
+titra hook claude                # Claude Code PreToolUse hook
+titra report --format md|text|json [--state DIR] [--fail-on block|any|off]
+titra init      # write a starter policy
+titra serve     # optional self-hosted dashboard (Titra Enterprise)
 ```
 
-## What it is honest about
+## Try it
 
-- **An in-runner guard is bypassable by root** — an agent that calls a tool by absolute path (`/usr/bin/git`) slips past. Titra is action-level policy on the agent's *intent* — the thing network egress monitoring and firewalls can't see (the dangerous action is often a normal-looking call to GitHub itself). It is not unbypassable containment, and pairs with, rather than replaces, out-of-runner controls.
-- **The shim sees commands looked up by name** — that covers how agents run tools today. The durable version is an MCP proxy that inspects structured tool calls instead of shell strings — on the roadmap.
-- **Shells aren't guarded by default** — their inner commands already are.
-
-## Layout
+Copy [`examples/.github/workflows/demo-blocked.yml`](examples/.github/workflows/demo-blocked.yml) into a repo and run it from the Actions tab. A stand-in agent tries seven attacks; Titra blocks them, catches the two that dodge the shims, and fails the check. Locally:
 
 ```
-main.go                 entrypoint — guard + serve/install/report/init
-internal/policy/        policy model + loader (YAML/JSON)
-internal/engine/        deterministic decision engine
-internal/guard/         enforcement point (resolve real tool, log, stream, exec/block)
-internal/reporter/      guard → server live stream
-internal/audit/         append-only JSONL action record (on-disk == on-the-wire)
-internal/report/        terminal + Markdown summaries
-internal/install/       shim install + environment wiring
-internal/server/        control plane: dashboard, ingest, SSE, GitHub App, OAuth
-  web/                  embedded dashboard (HTML/CSS/JS, no build step)
-internal/miniyaml/      tiny zero-dependency YAML subset parser
-action.yml              GitHub composite Action
-Dockerfile · fly.toml · docker-compose.yml
-examples/               guarded workflow, demo workflow, sample policy
-scripts/                demo.sh (local block demo), demo-live.sh (dashboard demo)
+make demo          # command-level blocking, no root
+sudo make demo-trace   # full product: tracing + report (Linux)
 ```
 
-**Zero third-party dependencies** — guard and server alike. Fitting for a tool whose job is reducing the untrusted code in your pipeline.
+## How it fits with Shrike
 
----
+[Shrike](https://github.com/ChelateSec/shrike) finds which of your workflows an outsider could hijack. Titra guards the ones you can't lock down. Shrike tells you where the risk is; Titra contains it.
 
-**Securing the agentic workflows.** — [Chelate Sec](https://github.com/ChelateSec)
+## License
+
+Apache-2.0.

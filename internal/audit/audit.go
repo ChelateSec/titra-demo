@@ -30,6 +30,10 @@ type Record struct {
 	RunID    string   `json:"run_id,omitempty"`   // GITHUB_RUN_ID or TITRA_RUN_ID
 	Workflow string   `json:"workflow,omitempty"` // GITHUB_WORKFLOW
 	Actor    string   `json:"actor,omitempty"`    // GITHUB_ACTOR (who triggered)
+	// Source is where the action was seen: "shim" (a guarded command on PATH)
+	// or an agent hook such as "claude-code" (the agent's own tool call).
+	Source    string `json:"source,omitempty"`
+	AgentTool string `json:"agent_tool,omitempty"` // the agent's tool name (Bash, Read, WebFetch...)
 }
 
 // NewRecord builds a Record from an attempt and its decision, stamping the CI
@@ -50,6 +54,7 @@ func NewRecord(a engine.Attempt, d engine.Decision) Record {
 		RunID:    firstNonEmpty(os.Getenv("GITHUB_RUN_ID"), os.Getenv("TITRA_RUN_ID")),
 		Workflow: os.Getenv("GITHUB_WORKFLOW"),
 		Actor:    os.Getenv("GITHUB_ACTOR"),
+		Source:   "shim",
 	}
 }
 

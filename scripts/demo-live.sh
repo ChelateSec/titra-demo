@@ -22,7 +22,18 @@ echo "› starting dashboard on http://localhost:$PORT"
 SRV=$!
 sleep 1
 
-open_url() { command -v open >/dev/null && open "$1" || command -v xdg-open >/dev/null && xdg-open "$1" || echo "   open $1"; }
+open_url() {
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    # WSL: open in the Windows browser.
+    cmd.exe /c start "" "$1" >/dev/null 2>&1 || echo "   open $1 in your browser"
+  elif [ "$(uname)" = "Darwin" ]; then
+    open "$1"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$1" >/dev/null 2>&1 || echo "   open $1 in your browser"
+  else
+    echo "   open $1 in your browser"
+  fi
+}
 echo "› opening the dashboard"
 open_url "http://localhost:$PORT"
 sleep 1

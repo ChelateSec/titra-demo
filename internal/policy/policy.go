@@ -83,6 +83,10 @@ type Policy struct {
 	// Default is the verdict when no rule matches. Almost always "allow".
 	Default Action
 	Rules   []Rule
+	// AllowedDomains are extra network destinations this workflow is expected
+	// to reach, on top of Titra's built-in list (GitHub, package registries,
+	// model APIs). "*.example.com" matches any subdomain.
+	AllowedDomains []string
 }
 
 // Default returns Titra's built-in secure-default policy. It is compiled into
@@ -219,6 +223,13 @@ func fromTree(tree any) (*Policy, error) {
 		Version: asInt(m["version"], 1),
 		Mode:    Mode(asStr(m["mode"], "")),
 		Default: Action(asStr(m["default"], "")),
+	}
+	if ds, ok := m["allowed_domains"].([]any); ok {
+		for _, d := range ds {
+			if v := asStr(d, ""); v != "" {
+				p.AllowedDomains = append(p.AllowedDomains, v)
+			}
+		}
 	}
 	rulesAny, _ := m["rules"].([]any)
 	for i, ra := range rulesAny {
