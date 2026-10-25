@@ -2,6 +2,10 @@
 
 **Watch what AI agents do in your CI job — and block the dangerous actions, in real time.**
 
+> **🎯 Clinejection Demo:** Run `make demo-clinejection` to see Titra block the real Clinejection attack. See [CLINEJECTION_DEMO.md](CLINEJECTION_DEMO.md) for details.
+>
+> **📹 YC Demo:** See [DEMO.md](DEMO.md) for the full demo walkthrough and [YC_PITCH.md](YC_PITCH.md) for the pitch.
+
 Titra is [Chelate Sec](https://github.com/ChelateSec)'s runtime guard for agentic CI/CD. Teams drop AI agents (Claude Code, Gemini CLI, Copilot) into their pipelines to triage issues and review PRs. Those agents read whatever a stranger writes and act with the repo's credentials. One prompt-injected issue and the agent pushes code, approves its own PR, or leaks a token — and nobody sees it happen.
 
 Titra is one line in your workflow. It watches the whole job, blocks the actions that turn a prompt injection into a supply-chain compromise, and posts a plain-language report on the run. The block decision is deterministic policy, **never a model** — a guard that asked an LLM whether to block could itself be prompt-injected.

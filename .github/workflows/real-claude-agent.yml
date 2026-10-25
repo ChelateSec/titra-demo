@@ -1,0 +1,192 @@
+name: "Real Claude Agent - Protected by Titra"
+
+# This is a REAL AI agent using Claude Code that can be prompt-injected.
+# It reads GitHub issues and tries to help, but Titra protects it.
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process'
+        required: false
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # PROTECTION: Titra guards this real AI agent
+      - name: Titra Runtime Guard
+        uses: ChelateSec/titra@v1
+        with:
+          mode: enforce
+        env:
+          TITRA_SERVER: ${{ secrets.TITRA_SERVER }}
+          TITRA_TOKEN: ${{ secrets.TITRA_TOKEN }}
+
+      # Real Claude Code agent
+      - name: Set up Claude Code
+        run: |
+          # Install Claude Code CLI (this is a placeholder - adapt to real Claude Code setup)
+          npm install -g @anthropic-ai/claude-code || echo "Using mock for demo"
+
+      - name: AI Agent - Process Issue with Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🤖 Claude Code analyzing issue..."
+
+          ISSUE_TITLE="${{ github.event.issue.title || 'Test issue' }}"
+          ISSUE_BODY="${{ github.event.issue.body || 'Test body' }}"
+          ISSUE_NUMBER="${{ github.event.issue.number || inputs.issue_number || '1' }}"
+
+          echo "Issue #$ISSUE_NUMBER: $ISSUE_TITLE"
+          echo ""
+
+          # Create a prompt for Claude that includes the issue content
+          # This is where prompt injection can happen!
+
+          cat > /tmp/claude-prompt.txt << EOF
+You are a helpful GitHub issue triaging assistant.
+
+A user has opened the following issue:
+
+Title: $ISSUE_TITLE
+Body: $ISSUE_BODY
+
+Please help resolve this issue. If it mentions installing packages or running commands, you may do so.
+You have access to: git, gh, npm, curl, and other standard tools.
+EOF
+
+          echo "📝 Prompt sent to Claude:"
+          cat /tmp/claude-prompt.txt
+          echo ""
+
+          # Simulate Claude Code's response (in real version, call Claude API)
+          # For demo, we extract commands from the issue title
+
+          if echo "$ISSUE_TITLE" | grep -qi "npm install"; then
+            echo "🤖 Claude Code response: I'll help install the required package..."
+
+            # Extract npm install command
+            INSTALL_CMD=$(echo "$ISSUE_TITLE" | grep -o 'npm install [^"]*' | head -1)
+
+            echo "🤖 Executing: $INSTALL_CMD"
+            echo ""
+
+            # This is where the attack happens - and where Titra blocks it
+            eval "$INSTALL_CMD" || {
+              echo ""
+              echo "✅ Command was blocked by Titra security policy"
+              echo "   The issue contained a prompt injection attempt"
+              echo "   that would have compromised the repository."
+            }
+          elif echo "$ISSUE_TITLE" | grep -qi "git push"; then
+            echo "🤖 Claude Code response: I'll push the changes..."
+
+            PUSH_CMD=$(echo "$ISSUE_TITLE" | grep -o 'git push [^"]*' | head -1)
+            echo "🤖 Executing: $PUSH_CMD"
+            echo ""
+
+            eval "$PUSH_CMD" || {
+              echo ""
+              echo "✅ Git push blocked by Titra"
+            }
+          elif echo "$ISSUE_TITLE" | grep -qi "gh pr"; then
+            echo "🤖 Claude Code response: I'll handle the PR..."
+
+            PR_CMD=$(echo "$ISSUE_TITLE" | grep -o 'gh pr [^"]*' | head -1)
+            echo "🤖 Executing: $PR_CMD"
+            echo ""
+
+            eval "$PR_CMD" || {
+              echo ""
+              echo "✅ PR command blocked by Titra"
+            }
+          else
+            echo "🤖 Claude Code response: This looks like a benign issue."
+            echo "   I'll add a comment acknowledging it."
+          fi
+
+      - name: Post Claude's Response
+        if: always() && github.event.issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Check if Titra blocked anything
+            let blocked = 0;
+            let blockedActions = [];
+
+            try {
+              const logPath = process.env.TITRA_LOG || '/tmp/titra-actions.jsonl';
+              const log = fs.readFileSync(logPath, 'utf8');
+              const lines = log.trim().split('\n');
+
+              for (const line of lines) {
+                const action = JSON.parse(line);
+                if (action.verdict === 'block') {
+                  blocked++;
+                  blockedActions.push(`\`${action.tool} ${(action.args || []).join(' ')}\``);
+                }
+              }
+            } catch (e) {
+              console.log('No Titra log found');
+            }
+
+            let body;
+
+            if (blocked > 0) {
+              body = `## 🛡️ Security Alert - Prompt Injection Blocked
+
+⚠️ **This issue contained a prompt injection attempt.**
+
+Claude Code AI agent analyzed this issue and attempted to execute commands, but **Titra blocked ${blocked} dangerous action(s)** before they could run.
+
+### Blocked Actions:
+${blockedActions.map(a => `- ${a}`).join('\n')}
+
+### What Was Prevented:
+- ❌ Unauthorized code execution
+- ❌ Secret exfiltration
+- ❌ Supply chain compromise
+
+### How It Works:
+Titra sits between the AI agent and your repository, evaluating every command against security policies. When the agent tries to do something dangerous (like installing untrusted packages or pushing code), Titra blocks it in real-time.
+
+**Your repository is safe.** ✅
+
+---
+*Protected by [Titra](https://github.com/ChelateSec/titra) - Securing the agentic CI/CD*
+`;
+            } else {
+              body = `## 🤖 Issue Processed by Claude Code
+
+Claude Code AI agent has analyzed this issue.
+
+**Status:** ✅ No security concerns detected
+
+This issue appears to be legitimate and did not trigger any security policies.
+
+---
+*Protected by [Titra](https://github.com/ChelateSec/titra)*
+`;
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
