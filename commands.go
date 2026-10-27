@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/ChelateSec/titra/internal/dnslog"
 	"github.com/ChelateSec/titra/internal/hook"
 	"github.com/ChelateSec/titra/internal/jobctx"
+	"github.com/ChelateSec/titra/internal/org"
 	"github.com/ChelateSec/titra/internal/report"
 	"github.com/ChelateSec/titra/internal/trace"
 )
@@ -144,6 +146,54 @@ func cmdDNS(args []string) {
 
 // cmdHook: `titra hook claude` — the Claude Code PreToolUse hook.
 func cmdHook(args []string) { hook.Main(args) }
+
+// cmdOrgReport builds the organization-wide roll-up: the enterprise single
+// pane of glass and audit log, assembled from the per-run JSON reports.
+func cmdOrgReport(ghOrg, fromDir, format, out string) {
+	var (
+		stories []report.Story
+		err     error
+		name    = ghOrg
+	)
+	switch {
+	case fromDir != "":
+		stories, err = org.FromDir(fromDir)
+		if name == "" {
+			name = filepath.Base(fromDir)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "titra: collecting Titra reports across %s via gh...\n", ghOrg)
+		stories, err = org.FromGitHub(ghOrg, envOr("TITRA_ARTIFACT", "titra-report"), 5)
+	}
+	if err != nil {
+		fatal(err)
+	}
+	view := org.Build(name, stories)
+
+	var w io.Writer = os.Stdout
+	if out != "" {
+		f, err := os.Create(out)
+		if err != nil {
+			fatal(err)
+		}
+		defer f.Close()
+		w = io.MultiWriter(os.Stdout, f)
+		if format == "html" || format == "json" {
+			w = f // don't dump HTML/JSON to the terminal
+		}
+	}
+	switch format {
+	case "html":
+		org.HTML(w, view)
+		if out != "" {
+			fmt.Fprintf(os.Stderr, "titra: wrote org dashboard to %s (%d repos, %d flagged)\n", out, view.Totals.Repos, len(view.Audit))
+		}
+	case "json":
+		_ = org.JSON(w, view)
+	default:
+		org.Terminal(w, view)
+	}
+}
 
 func defaultStateDir() string {
 	if rt := os.Getenv("RUNNER_TEMP"); rt != "" {

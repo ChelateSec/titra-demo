@@ -1,0 +1,48 @@
+# Titra Enterprise — the org-wide roll-up.
+#
+# Runs on a schedule, collects the Titra report every repo's runs uploaded, and
+# publishes one organization dashboard: which repos run AI agents, which are
+# exposed (an outsider can trigger an agent that holds a write token), what was
+# blocked, and a full audit log. No hosted server — it's one HTML file.
+#
+# Put this in an internal "security" repo. The token needs read access to
+# Actions artifacts across the org; a fine-grained PAT or GitHub App token with
+# "Actions: read" on the org works. Store it as secrets.TITRA_ORG_TOKEN.
+name: Titra org report
+
+on:
+  schedule:
+    - cron: "17 7 * * 1-5"   # weekday mornings
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rollup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Install titra
+        run: go install github.com/ChelateSec/titra@v1
+
+      - name: Build the org dashboard
+        env:
+          GH_TOKEN: ${{ secrets.TITRA_ORG_TOKEN }}
+        run: |
+          titra report --github-org "${{ github.repository_owner }}" \
+            --format html --out titra-org.html
+          titra report --github-org "${{ github.repository_owner }}" \
+            --format json --out titra-org.json
+
+      - name: Publish the dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: titra-org-dashboard
+          path: |
+            titra-org.html
+            titra-org.json

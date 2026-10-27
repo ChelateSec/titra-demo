@@ -103,20 +103,6 @@ a:hover { color: var(--terra-soft); border-color: var(--terra-soft); }
 .verdict.blocked { border-color: var(--terra); color: var(--terra); }
 .verdict.would { border-color: var(--amber); color: var(--amber); }
 
-.risk-score { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
-.risk-label { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.risk-value { font-family: var(--serif); font-size: 32px; font-weight: 400; min-width: 60px; }
-.risk-value.critical { color: var(--terra); }
-.risk-value.high { color: var(--amber); }
-.risk-value.medium { color: var(--muted); }
-.risk-value.low { color: var(--ok); }
-.risk-bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; max-width: 200px; }
-.risk-fill { height: 100%; transition: width 0.3s ease; }
-.risk-fill.critical { background: var(--terra); }
-.risk-fill.high { background: var(--amber); }
-.risk-fill.medium { background: var(--muted); }
-.risk-fill.low { background: var(--ok); }
-
 .detail-stats { display: flex; gap: 40px; padding: 18px 28px; border-bottom: 1px solid var(--line); }
 .dstat b { font-family: var(--serif); font-size: 24px; font-weight: 400; }
 .dstat span { color: var(--muted); font-size: 10.5px; letter-spacing: .08em; text-transform: lowercase; display: block; margin-top: -2px; }

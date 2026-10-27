@@ -97,10 +97,6 @@ function renderDetail(run, actions) {
   const would = actions.filter(a => a.verdict === "would-block").length;
   const allowed = actions.length - blocked - would;
 
-  // Calculate risk score (0-100)
-  const riskScore = calculateRiskScore(actions);
-  const riskClass = riskScore >= 80 ? 'critical' : riskScore >= 50 ? 'high' : riskScore >= 20 ? 'medium' : 'low';
-
   let banner = `<div class="verdict clean">No risky actions in this run.</div>`;
   if (blocked) banner = `<div class="verdict blocked">${blocked} action${blocked > 1 ? "s" : ""} blocked before running.</div>`;
   else if (would) banner = `<div class="verdict would">${would} action${would > 1 ? "s" : ""} would be blocked — monitor mode.</div>`;
@@ -113,11 +109,6 @@ function renderDetail(run, actions) {
       </div>
       <div class="detail-sub">${esc(run.workflow || "job")}${run.actor ? " · triggered by " + esc(run.actor) : ""}${run.run_id ? " · run " + esc(run.run_id) : ""}</div>
       ${banner}
-      <div class="risk-score">
-        <span class="risk-label">Risk Score</span>
-        <span class="risk-value ${riskClass}">${riskScore}</span>
-        <div class="risk-bar"><div class="risk-fill ${riskClass}" style="width:${riskScore}%"></div></div>
-      </div>
     </div>
     <div class="detail-stats">
       <div class="dstat"><b>${actions.length}</b><span>actions</span></div>
@@ -130,23 +121,6 @@ function renderDetail(run, actions) {
   const tl = $("#timeline");
   // newest first
   for (const a of [...actions].reverse()) tl.appendChild(rowEl(a));
-}
-
-function calculateRiskScore(actions) {
-  if (!actions.length) return 0;
-
-  const severityWeights = { critical: 40, high: 20, medium: 10, low: 5, info: 1 };
-  const verdictMultiplier = { block: 2, 'would-block': 1.5, allow: 0.1 };
-
-  let score = 0;
-  for (const a of actions) {
-    const sev = severityWeights[a.severity] || 1;
-    const mult = verdictMultiplier[a.verdict] || 0.1;
-    score += sev * mult;
-  }
-
-  // Normalize to 0-100
-  return Math.min(100, Math.round(score / Math.max(1, actions.length / 2)));
 }
 
 function rowEl(a) {

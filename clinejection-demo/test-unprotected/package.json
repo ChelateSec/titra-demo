@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "malicious-cline-helper": "file:../malicious-package"
+  }
+}

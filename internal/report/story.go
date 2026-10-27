@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ChelateSec/titra/internal/audit"
 	"github.com/ChelateSec/titra/internal/dnslog"
@@ -15,9 +16,10 @@ import (
 // it tried, what was stopped, and everything else the job touched that the
 // shims alone could not see.
 type Story struct {
-	Context jobctx.Context `json:"context"`
-	Mode    string         `json:"mode"`
-	Status  string         `json:"status"` // blocked | warning | clean
+	Generated string         `json:"generated,omitempty"` // RFC3339 when the report was built
+	Context   jobctx.Context `json:"context"`
+	Mode      string         `json:"mode"`
+	Status    string         `json:"status"` // blocked | warning | clean
 
 	Actions    []audit.Record `json:"actions"`
 	Blocked    []audit.Record `json:"blocked"`
@@ -110,7 +112,7 @@ var credOwner = map[string][]string{
 // Build assembles the story from the log, the job context, and (if tracing was
 // on) the kernel events and DNS log.
 func Build(in Input) Story {
-	s := Story{Context: in.Context, Actions: in.Records}
+	s := Story{Generated: time.Now().UTC().Format(time.RFC3339), Context: in.Context, Actions: in.Records}
 
 	for _, r := range in.Records {
 		if s.Mode == "" && r.Mode != "" {

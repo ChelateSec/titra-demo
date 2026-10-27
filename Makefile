@@ -1,4 +1,4 @@
-VERSION ?= 0.3.0
+VERSION ?= 0.4.0
 LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: build test vet fmt demo clean install
@@ -42,12 +42,3 @@ demo-live: ## Live demo: dashboard + a guarded agent streaming to it
 
 docker: ## Build the server image
 	docker build -t titra:latest .
-
-demo-yc: build ## YC Demo: Full Enterprise demo with dashboard + simulated attack
-	./demo-yc.sh
-
-demo-vuln: build ## Run vulnerable workflow locally with live dashboard
-	./test-vuln-workflow.sh
-
-demo-clinejection: build ## Clinejection attack demo: without Titra vs with Titra
-	./demo-clinejection.sh

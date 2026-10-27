@@ -131,11 +131,19 @@ func cmdInstall(args []string) {
 func cmdReport(args []string) {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	logPath := fs.String("log", defaultLogPath(), "path to the JSONL action log")
-	format := fs.String("format", "text", "output format: text | md | json")
+	format := fs.String("format", "text", "output format: text | md | json | html")
 	failOn := fs.String("fail-on", "", "exit non-zero if any action was blocked (block) or would-block|any")
 	stateDir := fs.String("state", os.Getenv("TITRA_STATE"), "trace state dir (enables the full run report)")
 	out := fs.String("out", "", "also write the report to this file")
+	githubOrg := fs.String("github-org", "", "roll up Titra reports across every repo in this GitHub org (needs the gh CLI)")
+	fromDir := fs.String("from-dir", "", "roll up every *.json Titra report found under this directory")
 	_ = fs.Parse(args)
+
+	// Org roll-up: the enterprise view across many repos.
+	if *githubOrg != "" || *fromDir != "" {
+		cmdOrgReport(*githubOrg, *fromDir, *format, *out)
+		return
+	}
 
 	story, legacy, err := buildReport(*logPath, *stateDir)
 	if err != nil {
@@ -307,6 +315,10 @@ Usage:
   titra report [--log F] [--state DIR] [--format text|md|json] [--fail-on block|any|off] [--out F]
       Render the run report. With --state it tells the whole story: who
       triggered the run, which agent ran, what it tried, and what else the job did.
+  titra report --github-org ORG [--format html|json|text] [--out F]
+  titra report --from-dir DIR   [--format html|json|text] [--out F]
+      Enterprise roll-up: one org-wide dashboard and audit log across every repo,
+      built from the per-run reports. --github-org collects them with the gh CLI.
   titra dns --upstream H --log F [--listen 127.0.0.1:53]
       Logging DNS forwarder (started by 'trace' to name outbound connections).
   titra init [--path .titra/policy.yml] [--mode monitor|dry-run|enforce]

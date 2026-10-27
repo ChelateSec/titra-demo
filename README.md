@@ -2,10 +2,6 @@
 
 **Watch what AI agents do in your CI job — and block the dangerous actions, in real time.**
 
-> **🎯 Clinejection Demo:** Run `make demo-clinejection` to see Titra block the real Clinejection attack. See [CLINEJECTION_DEMO.md](CLINEJECTION_DEMO.md) for details.
->
-> **📹 YC Demo:** See [DEMO.md](DEMO.md) for the full demo walkthrough and [YC_PITCH.md](YC_PITCH.md) for the pitch.
-
 Titra is [Chelate Sec](https://github.com/ChelateSec)'s runtime guard for agentic CI/CD. Teams drop AI agents (Claude Code, Gemini CLI, Copilot) into their pipelines to triage issues and review PRs. Those agents read whatever a stranger writes and act with the repo's credentials. One prompt-injected issue and the agent pushes code, approves its own PR, or leaks a token — and nobody sees it happen.
 
 Titra is one line in your workflow. It watches the whole job, blocks the actions that turn a prompt injection into a supply-chain compromise, and posts a plain-language report on the run. The block decision is deterministic policy, **never a model** — a guard that asked an LLM whether to block could itself be prompt-injected.
@@ -109,6 +105,32 @@ Copy [`examples/.github/workflows/demo-blocked.yml`](examples/.github/workflows/
 make demo          # command-level blocking, no root
 sudo make demo-trace   # full product: tracing + report (Linux)
 ```
+
+## Titra Enterprise — the org-wide view
+
+The Action above is free and open source. For a security team running agents
+across many repos, Titra rolls every run up into one organization dashboard and
+audit log — no hosted service:
+
+```
+titra report --github-org acme --format html --out titra-org.html
+```
+
+It collects the report each run already uploads and produces one self-contained
+HTML page: which repos run AI agents, which are **exposed** (an outsider can
+trigger an agent that holds a write token), what was blocked this period, and a
+full audit log of every blocked and flagged action across the org. Run it on a
+schedule from an internal repo — see [`examples/.github/workflows/org-report.yml`](examples/.github/workflows/org-report.yml).
+
+Enterprise adds, on top of the open-source guard:
+
+- **One dashboard** across every repo, ranked by risk.
+- **Org-wide policy** — one policy file enforced everywhere, so a team can't weaken its own guard.
+- **Audit log** — a durable, exportable record of every agent action and block.
+- Coming next: alerts (Slack/email on block) and ephemeral, scoped credentials for the agent.
+
+A live hosted dashboard (`titra serve`) is available for teams that want it; the
+serverless roll-up needs nothing to run.
 
 ## How it fits with Shrike
 
