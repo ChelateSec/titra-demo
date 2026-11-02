@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Titra Demo</title>
+  <meta name="description" content="Interactive demo of Titra by Chelate: runtime security for CI/CD pipelines and the AI agents in them.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">Titra</span>
+      <span class="brand-tag">securing the agentic CI/CD · demo</span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="runs" class="on">Runs</button>
+      <button data-view="coverage" class="paid">Coverage</button>
+      <button data-view="policy" class="paid">Policy</button>
+      <button data-view="setup" class="paid">Setup</button>
+    </nav>
+    <div class="top-right">
+      <label class="acct-pick" id="acct-wrap" hidden>
+        <select id="acct" aria-label="Organization"></select>
+        <span id="plan" class="plan"></span>
+      </label>
+      <span id="live" class="live off" title="live connection">live</span>
+      <span id="user" class="user"></span>
+    </div>
+  </header>
+
+  <div class="demo-banner">
+    <b>Live product demo · sample data.</b> This is the real Titra dashboard showing a fictional org, <code>acme</code>.
+    Start with the runs under <b>Needs review</b>: an AI triage agent hijacked by a GitHub issue, a pull request trying to push to main, a PR-review agent approving its own PR.
+    <a href="https://www.chelate.tech/">chelate.tech</a>
+  </div>
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- Runs: repos → runs → one run. A big org has thousands of runs; the
+       default view shows only what needs a maintainer, and everything else
+       stays one click away. -->
+  <section class="view" id="view-runs">
+    <section class="totals" id="totals" hidden>
+      <div class="stat"><div class="stat-n" id="t-repos">0</div><div class="stat-l">repos</div></div>
+      <div class="stat"><div class="stat-n" id="t-runs">0</div><div class="stat-l">runs</div></div>
+      <button class="stat stat-btn" id="t-review-btn" title="Show runs that need review"><div class="stat-n block" id="t-review">0</div><div class="stat-l">need review</div></button>
+      <div class="stat"><div class="stat-n" id="t-blocked">0</div><div class="stat-l">runs with blocks</div></div>
+      <div class="stat"><div class="stat-n" id="t-exposed">0</div><div class="stat-l">outsider-triggered</div></div>
+    </section>
+    <main class="layout3">
+      <aside class="col repos-col">
+        <h2>Repos</h2>
+        <input id="repo-q" class="search" type="search" placeholder="Find a repo" aria-label="Find a repo">
+        <ul class="repos" id="repos"></ul>
+      </aside>
+      <aside class="col runs-col">
+        <div class="col-head">
+          <h2 id="runs-title">Runs</h2>
+        </div>
+        <div class="chips" id="chips">
+          <button data-only="needs-review">Needs review</button>
+          <button data-only="">All</button>
+          <button data-only="blocked">Blocked</button>
+          <button data-only="outsider">Outsider</button>
+        </div>
+        <ul class="runs" id="runs"></ul>
+        <p class="muted small" id="runs-note"></p>
+      </aside>
+      <section class="detail" id="detail">
+        <div class="empty">
+          <p class="empty-mark">⌁</p>
+          <p>No run selected.</p>
+          <p class="muted small">Run a guarded pipeline — actions appear here live.</p>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <!-- Coverage -->
+  <section class="view pane" id="view-coverage" hidden>
+    <div class="pane-head">
+      <div>
+        <h1>Coverage</h1>
+        <p class="muted">Which repos run AI agents in CI — and which of those agents run without Titra.</p>
+      </div>
+      <button class="btn" id="scan">Scan repos</button>
+    </div>
+    <div id="cov-body"></div>
+  </section>
+
+  <!-- Policy -->
+  <section class="view pane" id="view-policy" hidden>
+    <div class="pane-head">
+      <div>
+        <h1>Org policy</h1>
+        <p class="muted">One policy for every guarded job in this org. Jobs pull it when they start.</p>
+      </div>
+    </div>
+    <div class="policy-grid">
+      <div>
+        <textarea id="pol" spellcheck="false" aria-label="Policy YAML"></textarea>
+        <div class="pol-actions">
+          <label class="check"><input type="checkbox" id="pol-lock"> Lock — repos can't override this policy or its mode</label>
+          <button class="btn" id="pol-save">Save policy</button>
+        </div>
+        <p id="pol-msg" class="small"></p>
+      </div>
+      <aside class="side-note">
+        <h2>How it applies</h2>
+        <p><b>Unlocked:</b> used by any job that doesn't set its own <code>policy</code> input.</p>
+        <p><b>Locked:</b> every job uses it, whatever its <code>policy</code> and <code>mode</code> inputs say. A run that doesn't is flagged as <span class="tag drift">drift</span> on the dashboard and on its PR.</p>
+        <p class="muted small">Rules are first-match-wins. <code>match.tool</code> is the command name; <code>match.args_regex</code> is tested against its arguments.</p>
+        <p class="muted small" id="pol-meta"></p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Setup -->
+  <section class="view pane" id="view-setup" hidden>
+    <div class="pane-head"><div><h1>Setup</h1><p class="muted">Connect a repo's guarded jobs to this dashboard.</p></div></div>
+    <div id="setup-body"></div>
+  </section>
+
+  <script src="static/demo.js"></script>
+  <script src="static/app.js"></script>
+</body>
+</html>
